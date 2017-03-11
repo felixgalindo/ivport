@@ -1,0 +1,32 @@
+{
+  "name": "ivport",
+  "version": "1.0.0",
+  "description": "Nodejs module for IVPort Raspberry Pi 8MP Camera Module V2 Multiplexer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "wiring-pi": "^2.2.1",
+    "raspicam": "^0.2.13",
+    "i2c": "^0.2.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felixgalindo/ivport.git"
+  },
+  "keywords": [
+    "ivport",
+    "raspberry",
+    "pi",
+    "raspberry",
+    "pi",
+    "camera"
+  ],
+  "author": "Felix A Galindo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/felixgalindo/ivport/issues"
+  },
+  "homepage": "https://github.com/felixgalindo/ivport#readme"
+}
