@@ -7,12 +7,14 @@ var RaspiCam = require("raspicam");
 var wpi = require('wiring-pi');
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
-
+var fs = require('fs');
 var i2c = require('i2c');
+
+//I2C stuff...
 var address = 0x70;
 var wire = new i2c(address, {
 	device: '/dev/i2c-1'
-}); // point to your i2c address, debug provides REPL interface 
+});
 
 wire.scan(function(err, data) {
 	console.log("scan:", data);
@@ -21,6 +23,33 @@ wire.scan(function(err, data) {
 wire.on('data', function(data) {
 	console.log("data:", data);
 });
+
+var cameraMap = {
+	1: {
+		writeValue: 0x01,
+		enable1PinVal: 0,
+		enable2PinVal: 1,
+		selPinVal: 0,
+	},
+	2: {
+		writeValue: 0x02,
+		enable1PinVal: 0,
+		enable2PinVal: 1,
+		selPinVal: 1,
+	},
+	3: {
+		writeValue: 0x04,
+		enable1PinVal: 1,
+		enable2PinVal: 0,
+		selPinVal: 0,
+	},
+	4: {
+		writeValue: 0x08,
+		enable1PinVal: 1,
+		enable2PinVal: 0,
+		selPinVal: 1,
+	},
+};
 
 //IVPort class
 function IVPort(config) {
@@ -37,120 +66,91 @@ function IVPort(config) {
 	wpi.pinMode(IVPort.config.selectionPin, wpi.OUTPUT);
 	wpi.digitalWrite(IVPort.config.selectionPin, 1);
 
-	ivport.cameras = [];
-	ivport.cameras['camera4'] = new RaspiCam({
+	ivport.filepath = "./test-pics/ivport-temp.jpg";
+	ivport.camera = new RaspiCam({
 		mode: IVPort.config.mode,
 		encoding: IVPort.config.encoding,
-		output: "./test-pics/image.jpg",
+		output: ivport.filepath,
 		t: 10
 	});
 
-	ivport.cameras['camera4'].on("start", function(err, timestamp) {
+	ivport.busy = false;
+	ivport.callback = null;
+	ivport.error = false;
+
+	ivport.camera.on("start", function(err, timestamp) {
 		console.log("photo started at " + timestamp);
-		ivport.emit('start', 'camera4');
+		ivport.emit('start', 'camera');
 	});
 
-	ivport.cameras['camera4'].on("read", function(err, timestamp, filename) {
-		console.log("photo image captured with filename: " + filename);
-		ivport.emit('read', 'camera4');
+	ivport.camera.on("read", function(err, timestamp, filename) {
+		if (filename === "ivport-temp.jpg") {
+			console.log("photo image captured with filename: " + filename);
+			copyFile("./test-pics/ivport-temp.jpg", ivport.filepath, function() {});
+		}
 	});
 
-	ivport.cameras['camera4'].on("exit", function(timestamp) {
+	ivport.camera.on("exit", function(timestamp) {
 		console.log("photo child process has exited at " + timestamp);
-		ivport.emit('exit', 'camera4');
+		ivport.emit('exit', 'camera');
+		ivport.busy = false;
+		if (ivport.callback) {
+			ivport.callback(null, ivport.filepath);
+		}
 	});
 }
 
 util.inherits(IVPort, EventEmitter);
 
-//Starts camera 1
-IVPort.prototype.camera1Start = function() {
+IVPort.prototype.cameraStart = function(camera, filepath, callback) {
 	var ivport = this;
-	wire.writeByte(0x01, function(err) {
+	if (ivport.busy) {
+		callback("IVPort is busy", null);
+		return;
+	}
+	ivport.busy = true;
+	ivport.callback = callback;
+	wire.writeByte(cameraMap[camera].writeValue, function(err) {
 		if (err) {
 			console.log(err)
 		} else {
-			console.log("Wrote byte");
+			console.log("Wrote value", cameraMap[camera].writeValue);
 		}
 	});
 	wpi.pinMode(IVPort.config.enable1Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable1Pin, 0);
+	wpi.digitalWrite(IVPort.config.enable1Pin, cameraMap[camera].enable1PinVal);
 	wpi.pinMode(IVPort.config.enable2Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable2Pin, 1);
+	wpi.digitalWrite(IVPort.config.enable2Pin, cameraMap[camera].enable2PinVal);
 	wpi.pinMode(IVPort.config.selectionPin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.selectionPin, 0);
+	wpi.digitalWrite(IVPort.config.selectionPin, cameraMap[camera].selPinVal);
+	ivport.filepath = filepath;
 	setTimeout(function() {
-		ivport.cameras['camera4'].start();
-	}, 1000);
+		ivport.camera.start();
+	}, 10);
 };
 
-//Starts camera 1
-IVPort.prototype.camera2Start = function() {
-	var ivport = this;
-	wire.writeByte(0x02, function(err) {
-		if (err) {
-			console.log(err)
-		} else {
-			console.log("Wrote byte");
-		}
+function copyFile(source, target, cb) {
+	var cbCalled = false;
+
+	var rd = fs.createReadStream(source);
+	rd.on("error", function(err) {
+		done(err);
 	});
-	wpi.pinMode(IVPort.config.enable1Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable1Pin, 0);
-	wpi.pinMode(IVPort.config.enable2Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable2Pin, 1);
-	wpi.pinMode(IVPort.config.selectionPin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.selectionPin, 1);
-	setTimeout(function() {
-		ivport.cameras['camera4'].start();
-	}, 1000);
-};
-
-//Starts camera 1
-IVPort.prototype.camera3Start = function() {
-	var ivport = this;
-	wire.writeByte(0x04, function(err) {
-		if (err) {
-			console.log(err)
-		} else {
-			console.log("Wrote byte");
-		}
+	var wr = fs.createWriteStream(target);
+	wr.on("error", function(err) {
+		done(err);
 	});
-	wpi.pinMode(IVPort.config.enable1Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable1Pin, 1);
-	wpi.pinMode(IVPort.config.enable2Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable2Pin, 0);
-	wpi.pinMode(IVPort.config.selectionPin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.selectionPin, 0);
-	setTimeout(function() {
-		ivport.cameras['camera4'].start();
-	}, 1000);
-};
-
-//Starts camera 1
-IVPort.prototype.camera4Start = function() {
-	var ivport = this;
-	wire.writeByte(0x08, function(err) {
-		if (err) {
-			console.log(err)
-		} else {
-			console.log("Wrote byte");
-		}
+	wr.on("close", function(ex) {
+		done();
 	});
-	wpi.pinMode(IVPort.config.enable1Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable1Pin, 1);
-	wpi.pinMode(IVPort.config.enable2Pin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.enable2Pin, 0);
-	wpi.pinMode(IVPort.config.selectionPin, wpi.OUTPUT);
-	wpi.digitalWrite(IVPort.config.selectionPin, 1);
-	setTimeout(function() {
-		ivport.cameras['camera4'].start();
-	}, 1000);
-};
+	rd.pipe(wr);
 
-//Stops camera 1
-IVPort.prototype.camera4Stop = function() {
-	var IVPort = this;
-	ivport.cameras['camera4'].stop();
-};
+	function done(err) {
+		if (!cbCalled && cb) {
+			cb(err);
+			cbCalled = true;
+		}
+	}
+}
 
 module.exports = IVPort;
