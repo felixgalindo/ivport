@@ -3,7 +3,8 @@ var config = {
 	encoding: "jpg",
 	enable1Pin: 0,
 	enable2Pin: 1,
-	selectionPin: 7
+	selectionPin: 7,
+	rot: 0
 }
 
 var IVPort = require("../index.js");

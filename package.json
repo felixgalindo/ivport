@@ -1,6 +1,6 @@
 {
   "name": "ivport",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Nodejs module for IVPort Raspberry Pi 8MP Camera Module V2 Multiplexer",
   "main": "index.js",
   "scripts": {

@@ -71,7 +71,8 @@ function IVPort(config) {
 		mode: IVPort.config.mode,
 		encoding: IVPort.config.encoding,
 		output: ivport.filepath,
-		t: 10
+		t: 10,
+		rot: IVPort.config.rot
 	});
 
 	ivport.busy = false;
@@ -126,7 +127,7 @@ IVPort.prototype.cameraStart = function(camera, filepath, callback) {
 	ivport.filepath = filepath;
 	setTimeout(function() {
 		ivport.camera.start();
-	}, 10);
+	}, 100);
 };
 
 function copyFile(source, target, cb) {
